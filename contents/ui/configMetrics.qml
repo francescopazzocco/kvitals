@@ -18,6 +18,9 @@ KCM.SimpleKCM {
     property string cfg_networkInterface: "auto"
     property string cfg_batteryDevice: "auto"
     property string cfg_metricOrder: "cpu,ram,temp,gpu,bat,pwr,net"
+    property bool cfg_mergeCpuTemp: false
+    property bool cfg_mergeBatPwr: false
+    property bool cfg_splitGpu: false
 
     property var ifaceList: ["auto"]
 
@@ -66,6 +69,15 @@ KCM.SimpleKCM {
             case "bat":  cfg_showBattery = val; break;
             case "pwr":  cfg_showPower   = val; break;
             case "net":  cfg_showNetwork = val; break;
+        }
+        // Reset merge toggles when a prerequisite metric is disabled
+        if (!val) {
+            if ((key === "cpu" || key === "temp") && cfg_mergeCpuTemp)
+                cfg_mergeCpuTemp = false;
+            if ((key === "bat" || key === "pwr") && cfg_mergeBatPwr)
+                cfg_mergeBatPwr = false;
+            if (key === "gpu" && cfg_splitGpu)
+                cfg_splitGpu = false;
         }
     }
 
@@ -124,8 +136,14 @@ KCM.SimpleKCM {
                 model: metricsPage.currentOrder
 
                 delegate: RowLayout {
+                    required property var modelData
+                    required property int index
+
                     spacing: Kirigami.Units.smallSpacing
                     Layout.fillWidth: true
+                    // Hide metrics that are absorbed into a group
+                    visible: !(modelData === "temp" && cfg_mergeCpuTemp && cfg_showCpu) &&
+                             !(modelData === "pwr"  && cfg_mergeBatPwr  && cfg_showBattery)
 
                     CheckBox {
                         checked: metricsPage.isChecked(modelData)
@@ -187,6 +205,62 @@ KCM.SimpleKCM {
             text: i18n("Empty value uses automatic detection.")
             opacity: 0.7
             visible: cfg_showBattery
+        }
+
+        Kirigami.Separator {
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("Grouping")
+        }
+
+        CheckBox {
+            id: mergeCpuTempCheck
+            Kirigami.FormData.label: i18n("Merge CPU & Temp:")
+            checked: cfg_mergeCpuTemp
+            enabled: cfg_showCpu && cfg_showTemp
+            onToggled: cfg_mergeCpuTemp = checked
+        }
+
+        Label {
+            text: i18n("Shows CPU temperature as a second value next to CPU usage.")
+            opacity: 0.7
+            font.italic: true
+            visible: cfg_showCpu && cfg_showTemp
+            wrapMode: Text.WordWrap
+            Layout.maximumWidth: 300
+        }
+
+        CheckBox {
+            id: mergeBatPwrCheck
+            Kirigami.FormData.label: i18n("Merge Battery & Power:")
+            checked: cfg_mergeBatPwr
+            enabled: cfg_showBattery && cfg_showPower
+            onToggled: cfg_mergeBatPwr = checked
+        }
+
+        Label {
+            text: i18n("Shows power consumption as a second value next to battery level.")
+            opacity: 0.7
+            font.italic: true
+            visible: cfg_showBattery && cfg_showPower
+            wrapMode: Text.WordWrap
+            Layout.maximumWidth: 300
+        }
+
+        CheckBox {
+            id: splitGpuCheck
+            Kirigami.FormData.label: i18n("Split GPU metrics:")
+            checked: cfg_splitGpu
+            enabled: cfg_showGpu
+            onToggled: cfg_splitGpu = checked
+        }
+
+        Label {
+            text: i18n("Shows GPU usage, VRAM and temperature as separate entries instead of grouped.")
+            opacity: 0.7
+            font.italic: true
+            visible: cfg_showGpu
+            wrapMode: Text.WordWrap
+            Layout.maximumWidth: 300
         }
     }
 }
