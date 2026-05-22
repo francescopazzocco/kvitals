@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.0
 import Qt.labs.platform 1.0 as Platform
 import org.kde.kirigami 2.5 as Kirigami
 import org.kde.kcmutils as KCM
+import "./sensors"
 
 KCM.SimpleKCM {
     id: colorsPage
@@ -30,6 +31,8 @@ KCM.SimpleKCM {
 
     readonly property string defaultWarningColor: "#e5a50a"
     readonly property string defaultCriticalColor: "#da4453"
+
+    property string cfg_tempUnit: "C"
 
     function isRgbHex(value) {
         return /^#[0-9A-Fa-f]{6}$/.test(value)
@@ -302,12 +305,12 @@ KCM.SimpleKCM {
             RowLayout {
                 Layout.fillWidth: true
                 Slider { id: tempWarnSlider; from: 30; to: 110; stepSize: 5; value: 60; Layout.fillWidth: true }
-                Label { text: Math.round(tempWarnSlider.value) + "°C"; Layout.preferredWidth: 40 }
+                Label { text: Utils.formatTemp(tempWarnSlider.value, cfg_tempUnit); Layout.preferredWidth: 40 }
             }
             RowLayout {
                 Layout.fillWidth: true
                 Slider { id: tempCritSlider; from: 30; to: 110; stepSize: 5; value: 85; Layout.fillWidth: true }
-                Label { text: Math.round(tempCritSlider.value) + "°C"; Layout.preferredWidth: 40 }
+                Label { text: Utils.formatTemp(tempCritSlider.value, cfg_tempUnit); Layout.preferredWidth: 40 }
             }
             Rectangle { Layout.preferredWidth: 10; Layout.preferredHeight: 10; radius: 5; color: tempWarnSlider.value >= tempCritSlider.value ? cfg_criticalColor : "transparent" }
 
@@ -344,12 +347,12 @@ KCM.SimpleKCM {
             RowLayout {
                 Layout.fillWidth: true
                 Slider { id: gpuTempWarnSlider; from: 30; to: 110; stepSize: 5; value: 60; Layout.fillWidth: true }
-                Label { text: Math.round(gpuTempWarnSlider.value) + "°C"; Layout.preferredWidth: 40 }
+                Label { text: Utils.formatTemp(gpuTempWarnSlider.value, cfg_tempUnit); Layout.preferredWidth: 40 }
             }
             RowLayout {
                 Layout.fillWidth: true
                 Slider { id: gpuTempCritSlider; from: 30; to: 110; stepSize: 5; value: 85; Layout.fillWidth: true }
-                Label { text: Math.round(gpuTempCritSlider.value) + "°C"; Layout.preferredWidth: 40 }
+                Label { text: Utils.formatTemp(gpuTempCritSlider.value, cfg_tempUnit); Layout.preferredWidth: 40 }
             }
             Rectangle { Layout.preferredWidth: 10; Layout.preferredHeight: 10; radius: 5; color: gpuTempWarnSlider.value >= gpuTempCritSlider.value ? cfg_criticalColor : "transparent" }
 
@@ -372,12 +375,12 @@ KCM.SimpleKCM {
             RowLayout {
                 Layout.fillWidth: true
                 Slider { id: diskTempWarnSlider; from: 30; to: 80; stepSize: 5; value: 45; Layout.fillWidth: true }
-                Label { text: Math.round(diskTempWarnSlider.value) + "°C"; Layout.preferredWidth: 40 }
+                Label { text: Utils.formatTemp(diskTempWarnSlider.value, cfg_tempUnit); Layout.preferredWidth: 40 }
             }
             RowLayout {
                 Layout.fillWidth: true
                 Slider { id: diskTempCritSlider; from: 30; to: 80; stepSize: 5; value: 60; Layout.fillWidth: true }
-                Label { text: Math.round(diskTempCritSlider.value) + "°C"; Layout.preferredWidth: 40 }
+                Label { text: Utils.formatTemp(diskTempCritSlider.value, cfg_tempUnit); Layout.preferredWidth: 40 }
             }
             Rectangle { Layout.preferredWidth: 10; Layout.preferredHeight: 10; radius: 5; color: diskTempWarnSlider.value >= diskTempCritSlider.value ? cfg_criticalColor : "transparent" }
         }
