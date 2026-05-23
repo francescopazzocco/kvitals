@@ -2,6 +2,12 @@
 
 All notable changes to KVitals will be documented in this file.
 
+## [2.8.1] - 2026-05-23
+
+### Fixed
+
+- **Installation via KDE Store leaving stale widget state** (`install-remote.sh`): Users who first installed via the KDE Store (or an older `install-remote.sh`) and then upgraded manually could end up with a mismatched `kpackage/generic/` registration. This caused settings like **Show in compact panel** to silently not apply, because KDE resolves widget configuration from the kpackage path, not the plasmoids path. The remote install script now mirrors the local `install.sh` behaviour exactly: it removes any previous entry under `~/.local/share/kpackage/generic/<id>` (including stale symlinks), creates the install directory under `~/.local/share/plasma/plasmoids/`, and creates a fresh symlink at the kpackage path pointing to it.
+
 ## [2.8.0] - 2026-05-22
 
 ### Added
