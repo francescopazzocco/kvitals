@@ -81,8 +81,6 @@ Item {
 
         if (JSON.stringify(found) !== JSON.stringify(_discovered)) {
             _discovered = found;
-            if (typeof Plasmoid !== "undefined" && Plasmoid.configuration)
-                Plasmoid.configuration.gpuDiscovered = found.map(function(g){ return g.id + ":" + g.name; }).join(",");
         }
     }
 

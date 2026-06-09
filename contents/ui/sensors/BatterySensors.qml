@@ -100,8 +100,6 @@ Item {
 
     function persistDetectedBattery(deviceId) {
         discoveredBatId = deviceId;
-        if (typeof Plasmoid !== "undefined" && Plasmoid.configuration)
-            Plasmoid.configuration.batteryDevice = deviceId;
     }
 
     function extractBatteryIds(stdout) {

@@ -54,8 +54,12 @@ KCM.SimpleKCM {
             if (!match) continue;
             found.push({ id: match[1], name: "GPU " + (found.length + 1) });
         }
-        if (JSON.stringify(found) !== JSON.stringify(_liveDiscoveredGpus))
+        if (JSON.stringify(found) !== JSON.stringify(_liveDiscoveredGpus)) {
             _liveDiscoveredGpus = found;
+            // Persist cache so the GPU selector has a fallback if the dialog
+            // opens before the sensor tree is fully populated.
+            cfg_gpuDiscovered = found.map(function(g){ return g.id + ":" + g.name; }).join(",");
+        }
     }
 
     Connections {
