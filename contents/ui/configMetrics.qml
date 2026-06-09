@@ -29,7 +29,6 @@ KCM.SimpleKCM {
     property string cfg_networkInterface: "auto"
     property string cfg_batteryDevice
     property string cfg_gpuSelection: ""
-    property string cfg_gpuDiscovered
     property string cfg_gpuLabels: ""
 
     // Discover GPUs via SensorTreeModel — pure metadata, zero polling, no dGPU wakeup.
@@ -54,12 +53,8 @@ KCM.SimpleKCM {
             if (!match) continue;
             found.push({ id: match[1], name: "GPU " + (found.length + 1) });
         }
-        if (JSON.stringify(found) !== JSON.stringify(_liveDiscoveredGpus)) {
+        if (JSON.stringify(found) !== JSON.stringify(_liveDiscoveredGpus))
             _liveDiscoveredGpus = found;
-            // Persist cache so the GPU selector has a fallback if the dialog
-            // opens before the sensor tree is fully populated.
-            cfg_gpuDiscovered = found.map(function(g){ return g.id + ":" + g.name; }).join(",");
-        }
     }
 
     Connections {
@@ -70,16 +65,7 @@ KCM.SimpleKCM {
         function onDataChanged()  { metricsPage.refreshConfigGpus(); }
     }
 
-    // Use live results first; fall back to persisted cfg_gpuDiscovered if the
-    // sensor tree hasn't populated yet (e.g. very fast dialog open).
-    readonly property var discoveredGpus: {
-        if (_liveDiscoveredGpus.length > 0) return _liveDiscoveredGpus;
-        if (!cfg_gpuDiscovered) return [];
-        return cfg_gpuDiscovered.split(",").filter(function(s){ return s.indexOf(":") >= 0; }).map(function(s){
-            var parts = s.split(":");
-            return { id: parts[0], name: parts.slice(1).join(":") };
-        });
-    }
+    readonly property var discoveredGpus: _liveDiscoveredGpus
 
     // Parse "gpu0:Label A|gpu1:Label B" → { gpu0: "Label A", gpu1: "Label B" }
     function parseGpuLabels(str) {

@@ -64,9 +64,6 @@
         <entry name="gpuSelection" type="String">
             <default></default>
         </entry>
-        <entry name="gpuDiscovered" type="String">
-            <default></default>
-        </entry>
         <entry name="gpuLabels" type="String">
             <default></default>
         </entry>
