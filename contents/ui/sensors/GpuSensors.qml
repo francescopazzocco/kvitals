@@ -4,6 +4,7 @@ import org.kde.kitemmodels as KItemModels
 
 Item {
     id: root
+    property bool _dbg: { console.warn("[KVitals] GpuSensors: constructing..."); return true; }
 
     property int updateInterval: 2000
 
@@ -69,6 +70,7 @@ Item {
     }
 
     function refreshDiscovered() {
+        console.debug("[KVitals] GpuSensors: scan started. rows = " + flatSensors.rowCount());
         var found = [];
         for (var row = 0; row < flatSensors.rowCount(); row++) {
             var idx = flatSensors.index(row, 0);
@@ -79,7 +81,9 @@ Item {
             found.push({ id: match[1], name: "GPU " + (found.length + 1) });
         }
 
+        console.debug("[KVitals] GpuSensors: scan finished. found = " + JSON.stringify(found));
         if (JSON.stringify(found) !== JSON.stringify(_discovered)) {
+            console.warn("[KVitals] GpuSensors: discovered GPUs updated = " + JSON.stringify(found));
             _discovered = found;
         }
     }
@@ -92,7 +96,10 @@ Item {
         function onDataChanged()     { root.refreshDiscovered(); }
     }
 
-    Component.onCompleted: refreshDiscovered()
+    Component.onCompleted: {
+        console.warn("[KVitals] GpuSensors: ready. selection=" + gpuSelection);
+        refreshDiscovered();
+    }
 
     // -------------------------------------------------------------------------
     // Step 2: Compute active sensor IDs from user selection

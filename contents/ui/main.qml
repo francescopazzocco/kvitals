@@ -7,6 +7,7 @@ import "./sensors"
 
 PlasmoidItem {
     id: root
+    property bool _dbg: { console.warn("[KVitals] main.qml: constructing..."); return true; }
 
     preferredRepresentation: compactRepresentation
 
@@ -425,5 +426,9 @@ PlasmoidItem {
             }
         }
         return parts.join("\n");
+    }
+
+    Component.onCompleted: {
+        console.warn("[KVitals] main.qml: ready. config: showCpu=" + showCpu + " showGpu=" + showGpu + " showBattery=" + showBattery + " showNetwork=" + showNetwork + " showDisk=" + showDisk);
     }
 }

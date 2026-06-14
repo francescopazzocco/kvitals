@@ -3,6 +3,7 @@ import org.kde.ksysguard.sensors as Sensors
 
 Item {
     id: root
+    property bool _dbg: { console.warn("[KVitals] NetworkSensors: constructing..."); return true; }
 
     property int updateInterval: 2000
     property string networkInterface: "auto"
@@ -34,5 +35,9 @@ Item {
         id: netUpSensor
         sensorId: "network/" + root.netIfacePath + "/upload"
         updateRateLimit: root.updateInterval
+    }
+
+    Component.onCompleted: {
+        console.warn("[KVitals] NetworkSensors: ready.");
     }
 }

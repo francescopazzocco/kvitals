@@ -3,6 +3,7 @@ import org.kde.ksysguard.sensors as Sensors
 
 Item {
     id: root
+    property bool _dbg: { console.warn("[KVitals] CpuSensors: constructing..."); return true; }
 
     property int updateInterval: 2000
 
@@ -38,5 +39,9 @@ Item {
         id: freqSensor
         sensorId: "cpu/all/averageFrequency"
         updateRateLimit: root.updateInterval
+    }
+
+    Component.onCompleted: {
+        console.warn("[KVitals] CpuSensors: ready.");
     }
 }
