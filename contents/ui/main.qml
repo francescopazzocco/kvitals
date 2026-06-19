@@ -39,6 +39,7 @@ PlasmoidItem {
     property bool showCpuFreq: Plasmoid.configuration.showCpuFreq
     property bool mergeBatPwr: Plasmoid.configuration.mergeBatPwr
     property bool splitGpu: Plasmoid.configuration.splitGpu
+    property string gpuMetrics: Plasmoid.configuration.gpuMetrics
     property int iconSize: Plasmoid.configuration.iconSize
     property string cpuIcon: Plasmoid.configuration.cpuIcon
     property string ramIcon: Plasmoid.configuration.ramIcon
@@ -153,6 +154,7 @@ PlasmoidItem {
         gpuSelection: root.gpuSelection
         gpuLabels: root.gpuLabels
         tempUnit: root.tempUnit
+        gpuMetrics: root.gpuMetrics
     }
 
     BatterySensors {

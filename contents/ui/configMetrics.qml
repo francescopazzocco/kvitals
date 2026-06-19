@@ -103,11 +103,59 @@ KCM.SimpleKCM {
             parts.push(id + ":" + labels[id]);
         cfg_gpuLabels = parts.join("|");
     }
+    // Parse "gpu0:usage,vram|gpu1:temp" → { gpu0: ["usage","vram"], gpu1: ["temp"] }
+    function parseGpuMetrics(str) {
+        var result = {};
+        if (!str) return result;
+        var pairs = str.split("|");
+        for (var i = 0; i < pairs.length; i++) {
+            var sep = pairs[i].indexOf(":");
+            if (sep <= 0) continue;
+            var id = pairs[i].substring(0, sep);
+            var metrics = pairs[i].substring(sep + 1).split(",").filter(
+                function(m){ return m === "usage" || m === "vram" || m === "temp"; });
+            if (metrics.length > 0) result[id] = metrics;
+        }
+        return result;
+    }
+
+    // Returns enabled metrics for one GPU (defaults to all three)
+    function gpuMetricsFor(gpuId) {
+        var mm = parseGpuMetrics(cfg_gpuMetrics);
+        return (mm[gpuId] && mm[gpuId].length > 0) ? mm[gpuId] : ["usage", "vram", "temp"];
+    }
+
+    // Toggle one sub-metric for a GPU, save back to cfg_gpuMetrics.
+    // Enforces at-least-one: if only one remains, the call is ignored.
+    function saveGpuMetric(gpuId, metric, enable) {
+        var mm = parseGpuMetrics(cfg_gpuMetrics);
+        var current = mm[gpuId] ? mm[gpuId].slice() : ["usage", "vram", "temp"];
+        if (enable) {
+            if (current.indexOf(metric) < 0) current.push(metric);
+        } else {
+            if (current.length <= 1) return; // enforce minimum one
+            current = current.filter(function(m){ return m !== metric; });
+        }
+        // Sort canonical order
+        var order = ["usage", "vram", "temp"];
+        current.sort(function(a, b){ return order.indexOf(a) - order.indexOf(b); });
+        // If all three are enabled, remove this GPU from the map (use default)
+        if (current.length === 3) {
+            delete mm[gpuId];
+        } else {
+            mm[gpuId] = current;
+        }
+        var parts = [];
+        for (var id in mm) parts.push(id + ":" + mm[id].join(","));
+        cfg_gpuMetrics = parts.join("|");
+    }
+
     property string cfg_metricOrder: "cpu,ram,temp,gpu,bat,pwr,net"
     property bool cfg_mergeCpuTemp: false
     property bool cfg_mergeCpuFreq: false
     property bool cfg_mergeBatPwr: false
     property bool cfg_splitGpu: false
+    property string cfg_gpuMetrics: ""
     property bool cfg_showCpuFreq: false
 
     property var ifaceList: ["auto"]
@@ -439,12 +487,22 @@ KCM.SimpleKCM {
                 model: metricsPage.discoveredGpus
 
                 delegate: ColumnLayout {
+                    id: gpuDelegate
                     required property var modelData
                     spacing: 2
                     Layout.fillWidth: true
 
+                    // Reactive per-GPU enabled metrics list
+                    property var _activeMetrics: metricsPage.gpuMetricsFor(modelData.id)
+
+                    // True when this GPU is part of the active selection
+                    property bool _gpuEnabled: {
+                        if (!cfg_gpuSelection || cfg_gpuSelection === "") return true;
+                        if (cfg_gpuSelection === "none") return false;
+                        return cfg_gpuSelection.split(",").indexOf(modelData.id) >= 0;
+                    }
+
                     CheckBox {
-                        // Show detected GPU name (e.g. "GPU 1") or user-defined custom label
                         text: modelData.name
                         checked: {
                             if (!cfg_gpuSelection || cfg_gpuSelection === "")
@@ -454,7 +512,6 @@ KCM.SimpleKCM {
                             return cfg_gpuSelection.split(",").indexOf(modelData.id) >= 0;
                         }
                         onToggled: {
-                            // Expand current selection into an explicit id list
                             var ids;
                             if (!cfg_gpuSelection || cfg_gpuSelection === "") {
                                 ids = gpuSelectorRepeater.model.map(function(g) { return g.id; });
@@ -471,31 +528,58 @@ KCM.SimpleKCM {
                             var allIds = gpuSelectorRepeater.model.map(function(g) { return g.id; });
                             var allSelected = allIds.every(function(id) { return ids.indexOf(id) >= 0; });
                             if (allSelected)
-                                cfg_gpuSelection = "";        // default: all discovered
+                                cfg_gpuSelection = "";
                             else if (ids.length === 0)
-                                cfg_gpuSelection = "none";    // explicit: nothing polled
+                                cfg_gpuSelection = "none";
                             else
                                 cfg_gpuSelection = ids.join(",");
                         }
                     }
 
-                    // Custom label rename field
+                    // Label row
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.leftMargin: Kirigami.Units.gridUnit + Kirigami.Units.smallSpacing
                         spacing: Kirigami.Units.smallSpacing
 
-                        Label {
-                            text: i18n("Label:")
-                            opacity: 0.8
-                        }
+                        Label { text: i18n("Label:"); opacity: 0.8 }
 
                         TextField {
                             Layout.fillWidth: true
-                            // Show current custom label or empty to let placeholder show
                             text: metricsPage.parseGpuLabels(cfg_gpuLabels)[modelData.id] || ""
                             placeholderText: modelData.name
                             onTextEdited: metricsPage.saveGpuLabel(modelData.id, text)
+                        }
+                    }
+
+                    // Per-GPU sub-metric toggles (at least one must stay enabled)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Kirigami.Units.gridUnit + Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.largeSpacing
+
+                        Label { text: i18n("Show:"); opacity: 0.8 }
+
+                        CheckBox {
+                            text: i18n("Usage")
+                            checked: gpuDelegate._activeMetrics.indexOf("usage") >= 0
+                            // Disable when GPU is inactive or this is the last remaining sub-metric
+                            enabled: cfg_showGpu && gpuDelegate._gpuEnabled && !(checked && gpuDelegate._activeMetrics.length <= 1)
+                            onToggled: metricsPage.saveGpuMetric(gpuDelegate.modelData.id, "usage", checked)
+                        }
+
+                        CheckBox {
+                            text: i18n("VRAM")
+                            checked: gpuDelegate._activeMetrics.indexOf("vram") >= 0
+                            enabled: cfg_showGpu && gpuDelegate._gpuEnabled && !(checked && gpuDelegate._activeMetrics.length <= 1)
+                            onToggled: metricsPage.saveGpuMetric(gpuDelegate.modelData.id, "vram", checked)
+                        }
+
+                        CheckBox {
+                            text: i18n("Temp")
+                            checked: gpuDelegate._activeMetrics.indexOf("temp") >= 0
+                            enabled: cfg_showGpu && gpuDelegate._gpuEnabled && !(checked && gpuDelegate._activeMetrics.length <= 1)
+                            onToggled: metricsPage.saveGpuMetric(gpuDelegate.modelData.id, "temp", checked)
                         }
                     }
                 }
