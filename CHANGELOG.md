@@ -2,6 +2,16 @@
 
 All notable changes to KVitals will be documented in this file.
 
+## [2.9.0] - 2026-06-19
+
+### Added
+
+- **Per-GPU Sub-metric Visibility** (`Metrics` settings — GPU Selection): Each GPU entry now has independent **Usage**, **VRAM**, and **Temperature** toggles, letting you show only the metrics you care about without disabling the GPU entirely (#44).
+  - Toggling a sub-metric off immediately stops polling those sensors — no unnecessary kernel data fetched.
+  - A **minimum-one** guard prevents all three sub-metrics from being deselected at once (the last checked box is disabled), keeping at least one value visible per GPU.
+  - Sub-metric checkboxes are automatically disabled when the parent GPU is deselected, matching visual state to functional reality.
+  - Storage format uses a compact pipe-separated string (`gpu0:usage,vram|gpu1:usage,temp`). GPUs using all defaults are omitted, keeping the config short. Empty string (default) = all three enabled for every GPU — fully backwards-compatible with existing configs.
+
 ## [2.8.1] - 2026-05-23
 
 ### Fixed
