@@ -58,14 +58,6 @@ Item {
         console.warn("[KVitals] BatterySensors: AUTO-DISCOVERY DISABLED FOR TESTING.");
         return;
         // ---------------------------------------------------------
-        for (var i = 0; i < batteryCandidates.length; i++) {
-            var pre = "power/" + batteryCandidates[i] + "/chargePercentage";
-                var probe = Qt.createQmlObject(code, root, "probe_" + i);
-                stage1Probes.push({ candidate: batteryCandidates[i], probe: probe });
-            } catch(e) {
-                console.warn("[KVitals] BatterySensors: probe creation failed for " + batteryCandidates[i] + ": " + e.message);
-            }
-        }
     }
 
     Timer {
