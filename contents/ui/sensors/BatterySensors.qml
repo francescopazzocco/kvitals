@@ -53,15 +53,13 @@ Item {
 
     Component.onCompleted: {
         console.warn("[KVitals] BatterySensors: ready. batteryDevice = " + batteryDevice);
-        if (batteryDevice && batteryDevice !== "auto") {
-            console.debug("[KVitals] BatterySensors: manual device = " + batteryDevice);
-            return;
-        }
-        console.warn("[KVitals] BatterySensors: starting stage 1 probes...");
+        
+        // --- ISOLATION TEST: Disable auto-discovery completely ---
+        console.warn("[KVitals] BatterySensors: AUTO-DISCOVERY DISABLED FOR TESTING.");
+        return;
+        // ---------------------------------------------------------
         for (var i = 0; i < batteryCandidates.length; i++) {
             var pre = "power/" + batteryCandidates[i] + "/chargePercentage";
-            var code = 'import org.kde.ksysguard.sensors as Sensors; Sensors.Sensor { sensorId: "' + pre + '"; updateRateLimit: 0 }';
-            try {
                 var probe = Qt.createQmlObject(code, root, "probe_" + i);
                 stage1Probes.push({ candidate: batteryCandidates[i], probe: probe });
             } catch(e) {
@@ -78,7 +76,7 @@ Item {
         property int attempts: 0
         onTriggered: {
             attempts++;
-            console.debug("[KVitals] BatterySensors: probe attempt = " + attempts);
+            console.warn("[KVitals] BatterySensors: probe attempt = " + attempts);
             for (var i = 0; i < stage1Probes.length; i++) {
                 if (stage1Probes[i].probe && stage1Probes[i].probe.status === Sensors.Sensor.Ready) {
                     console.warn("[KVitals] BatterySensors: stage 1 found = " + stage1Probes[i].candidate);
