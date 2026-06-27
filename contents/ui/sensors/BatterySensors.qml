@@ -53,11 +53,18 @@ Item {
 
     Component.onCompleted: {
         console.warn("[KVitals] BatterySensors: ready. batteryDevice = " + batteryDevice);
-        
-        // --- ISOLATION TEST: Disable auto-discovery completely ---
-        console.warn("[KVitals] BatterySensors: AUTO-DISCOVERY DISABLED FOR TESTING.");
-        return;
-        // ---------------------------------------------------------
+        if (batteryDevice && batteryDevice !== "auto")
+            return;
+
+        for (var i = 0; i < batteryCandidates.length; i++) {
+            var pre = "power/" + batteryCandidates[i] + "/chargePercentage";
+            var code = 'import org.kde.ksysguard.sensors as Sensors; Sensors.Sensor { sensorId: "' + pre + '"; updateRateLimit: 2000 }';
+            try {
+                var probe = Qt.createQmlObject(code, root, "probe_" + i);
+                stage1Probes.push({ candidate: batteryCandidates[i], probe: probe });
+            } catch(e) {
+            }
+        }
     }
 
     Timer {

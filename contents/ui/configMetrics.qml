@@ -57,12 +57,25 @@ KCM.SimpleKCM {
             _liveDiscoveredGpus = found;
     }
 
+    property bool _discoveryDirty: false
+
+    Timer {
+        id: discoveryTimer
+        interval: 500
+        repeat: false
+        running: _discoveryDirty
+        onTriggered: {
+            _discoveryDirty = false;
+            metricsPage.refreshConfigGpus();
+        }
+    }
+
     Connections {
         target: cfgFlatSensors
-        function onRowsInserted() { metricsPage.refreshConfigGpus(); }
-        function onRowsRemoved()  { metricsPage.refreshConfigGpus(); }
-        function onModelReset()   { metricsPage.refreshConfigGpus(); }
-        function onDataChanged()  { metricsPage.refreshConfigGpus(); }
+        function onRowsInserted() { metricsPage._discoveryDirty = true; }
+        function onRowsRemoved()  { metricsPage._discoveryDirty = true; }
+        function onModelReset()   { metricsPage._discoveryDirty = true; }
+        function onDataChanged()  { metricsPage._discoveryDirty = true; }
     }
 
     readonly property var discoveredGpus: _liveDiscoveredGpus

@@ -64,11 +64,24 @@ Item {
         }
     }
 
+    property bool _discoveryDirty: false
+
+    Timer {
+        id: discoveryTimer
+        interval: 500
+        repeat: false
+        running: _discoveryDirty
+        onTriggered: {
+            _discoveryDirty = false;
+            root._refreshTempSensors();
+        }
+    }
+
     Connections {
         target: flatSensors
-        function onRowsInserted() { root._refreshTempSensors(); }
-        function onRowsRemoved()  { root._refreshTempSensors(); }
-        function onModelReset()   { root._refreshTempSensors(); }
+        function onRowsInserted() { root._discoveryDirty = true; }
+        function onRowsRemoved()  { root._discoveryDirty = true; }
+        function onModelReset()   { root._discoveryDirty = true; }
     }
 
     Component.onCompleted: {

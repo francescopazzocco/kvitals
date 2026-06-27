@@ -88,12 +88,25 @@ Item {
         }
     }
 
+    property bool _discoveryDirty: false
+
+    Timer {
+        id: discoveryTimer
+        interval: 500
+        repeat: false
+        running: _discoveryDirty
+        onTriggered: {
+            _discoveryDirty = false;
+            root.refreshDiscovered();
+        }
+    }
+
     Connections {
         target: flatSensors
-        function onRowsInserted()    { root.refreshDiscovered(); }
-        function onRowsRemoved()     { root.refreshDiscovered(); }
-        function onModelReset()      { root.refreshDiscovered(); }
-        function onDataChanged()     { root.refreshDiscovered(); }
+        function onRowsInserted()    { root._discoveryDirty = true; }
+        function onRowsRemoved()     { root._discoveryDirty = true; }
+        function onModelReset()      { root._discoveryDirty = true; }
+        function onDataChanged()     { root._discoveryDirty = true; }
     }
 
     Component.onCompleted: {
