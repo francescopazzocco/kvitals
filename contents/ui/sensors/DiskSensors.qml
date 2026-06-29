@@ -4,6 +4,7 @@ import org.kde.kitemmodels as KItemModels
 
 Item {
     id: root
+    property bool _dbg: { console.warn("[KVitals] DiskSensors: constructing..."); return true; }
 
     property int updateInterval: 2000
     property bool enabled: true
@@ -47,6 +48,7 @@ Item {
     property var _tempSensorIds: []
 
     function _refreshTempSensors() {
+        console.debug("[KVitals] DiskSensors: scan started. rows = " + flatSensors.rowCount());
         var found = [];
         for (var row = 0; row < flatSensors.rowCount(); row++) {
             var idx = flatSensors.index(row, 0);
@@ -55,18 +57,37 @@ Item {
             if (/^lmsensors\/(nvme-pci-[^/]+|drivetemp-scsi-[^/]+)\/temp[12]$/.test(sid))
                 found.push(sid);
         }
-        if (JSON.stringify(found) !== JSON.stringify(_tempSensorIds))
+        console.debug("[KVitals] DiskSensors: scan finished. found = " + JSON.stringify(found));
+        if (JSON.stringify(found) !== JSON.stringify(_tempSensorIds)) {
+            console.debug("[KVitals] DiskSensors: temp sensors updated. ids = " + JSON.stringify(found));
             _tempSensorIds = found;
+        }
+    }
+
+    property bool _discoveryDirty: false
+
+    Timer {
+        id: discoveryTimer
+        interval: 500
+        repeat: false
+        running: _discoveryDirty
+        onTriggered: {
+            _discoveryDirty = false;
+            root._refreshTempSensors();
+        }
     }
 
     Connections {
         target: flatSensors
-        function onRowsInserted() { root._refreshTempSensors(); }
-        function onRowsRemoved()  { root._refreshTempSensors(); }
-        function onModelReset()   { root._refreshTempSensors(); }
+        function onRowsInserted() { root._discoveryDirty = true; }
+        function onRowsRemoved()  { root._discoveryDirty = true; }
+        function onModelReset()   { root._discoveryDirty = true; }
     }
 
-    Component.onCompleted: _refreshTempSensors()
+    Component.onCompleted: {
+        console.warn("[KVitals] DiskSensors: ready.");
+        _refreshTempSensors();
+    }
 
     // Poll discovered temp sensors
     Sensors.SensorDataModel {

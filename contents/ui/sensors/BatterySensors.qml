@@ -4,6 +4,7 @@ import org.kde.plasma.plasma5support as Plasma5Support
 
 Item {
     id: root
+    property bool _dbg: { console.warn("[KVitals] BatterySensors: constructing..."); return true; }
 
     property int updateInterval: 2000
     property string batteryDevice: "auto"
@@ -51,12 +52,13 @@ Item {
     property var stage1Probes: []
 
     Component.onCompleted: {
+        console.warn("[KVitals] BatterySensors: ready. batteryDevice = " + batteryDevice);
         if (batteryDevice && batteryDevice !== "auto")
             return;
 
         for (var i = 0; i < batteryCandidates.length; i++) {
             var pre = "power/" + batteryCandidates[i] + "/chargePercentage";
-            var code = 'import org.kde.ksysguard.sensors as Sensors; Sensors.Sensor { sensorId: "' + pre + '"; updateRateLimit: 0 }';
+            var code = 'import org.kde.ksysguard.sensors as Sensors; Sensors.Sensor { sensorId: "' + pre + '"; updateRateLimit: 2000 }';
             try {
                 var probe = Qt.createQmlObject(code, root, "probe_" + i);
                 stage1Probes.push({ candidate: batteryCandidates[i], probe: probe });
@@ -73,8 +75,10 @@ Item {
         property int attempts: 0
         onTriggered: {
             attempts++;
+            console.warn("[KVitals] BatterySensors: probe attempt = " + attempts);
             for (var i = 0; i < stage1Probes.length; i++) {
                 if (stage1Probes[i].probe && stage1Probes[i].probe.status === Sensors.Sensor.Ready) {
+                    console.warn("[KVitals] BatterySensors: stage 1 found = " + stage1Probes[i].candidate);
                     persistDetectedBattery(stage1Probes[i].candidate);
                     running = false;
                     cleanupProbes();
@@ -82,6 +86,7 @@ Item {
                 }
             }
             if (attempts >= 6) { // 3 seconds timeout
+                console.warn("[KVitals] BatterySensors: stage 1 timeout, starting qdbus fallback...");
                 running = false;
                 cleanupProbes();
                 // Stage 2: qdbus fallback
@@ -100,8 +105,6 @@ Item {
 
     function persistDetectedBattery(deviceId) {
         discoveredBatId = deviceId;
-        if (typeof Plasmoid !== "undefined" && Plasmoid.configuration)
-            Plasmoid.configuration.batteryDevice = deviceId;
     }
 
     function extractBatteryIds(stdout) {
@@ -136,8 +139,11 @@ Item {
             active = false;
             disconnectSource(sourceName);
 
+            console.debug("[KVitals] BatterySensors: qdbus exit code = " + data["exit code"]);
             if (data["exit code"] === 0) {
-                var ids = extractBatteryIds(data["stdout"] ? data["stdout"].toString() : "");
+                var stdoutStr = data["stdout"] ? data["stdout"].toString() : "";
+                var ids = extractBatteryIds(stdoutStr);
+                console.debug("[KVitals] BatterySensors: qdbus ids = " + JSON.stringify(ids));
                 if (ids.length === 1) {
                     persistDetectedBattery(ids[0]);
                     return;
@@ -147,6 +153,8 @@ Item {
                     persistDetectedBattery(ids[0]);
                     return;
                 }
+            } else {
+                console.warn("[KVitals] BatterySensors: qdbus command failed.");
             }
             tryNextQdbus();
         }
@@ -162,11 +170,12 @@ Item {
 
     function tryNextQdbus() {
         if (qdbusIndex >= qdbusVariants.length) {
-            console.warn("BatterySensors: all detection methods exhausted; set batteryDevice manually in widget config");
+            console.warn("[KVitals] BatterySensors: all detection methods exhausted; set batteryDevice manually.");
             return;
         }
         var variant = qdbusVariants[qdbusIndex];
         qdbusIndex++;
+        console.debug("[KVitals] BatterySensors: trying qdbus variant = " + variant);
         qdbusDetector.run(variant);
     }
 

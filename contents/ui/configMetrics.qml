@@ -32,7 +32,6 @@ KCM.SimpleKCM {
     property string cfg_networkInterface: "auto"
     property string cfg_batteryDevice
     property string cfg_gpuSelection: ""
-    property string cfg_gpuDiscovered
     property string cfg_gpuLabels: ""
     property string cfg_metricOrder: "cpu,ram,temp,gpu,bat,pwr,net,disk"
     property bool cfg_mergeCpuTemp: false
@@ -71,12 +70,25 @@ KCM.SimpleKCM {
         gpuRefreshDebounce.restart();
     }
 
+    property bool _discoveryDirty: false
+
+    Timer {
+        id: discoveryTimer
+        interval: 500
+        repeat: false
+        running: _discoveryDirty
+        onTriggered: {
+            _discoveryDirty = false;
+            metricsPage.refreshConfigGpus();
+        }
+    }
+
     Connections {
         target: cfgFlatSensors
-        function onRowsInserted() { metricsPage.refreshConfigGpus(); }
-        function onRowsRemoved()  { metricsPage.refreshConfigGpus(); }
-        function onModelReset()   { metricsPage.refreshConfigGpus(); }
-        function onDataChanged()  { metricsPage.refreshConfigGpus(); }
+        function onRowsInserted() { metricsPage._discoveryDirty = true; }
+        function onRowsRemoved()  { metricsPage._discoveryDirty = true; }
+        function onModelReset()   { metricsPage._discoveryDirty = true; }
+        function onDataChanged()  { metricsPage._discoveryDirty = true; }
     }
 
     readonly property var discoveredGpus: {

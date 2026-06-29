@@ -4,6 +4,7 @@ import org.kde.kitemmodels as KItemModels
 
 Item {
     id: root
+    property bool _dbg: { console.warn("[KVitals] GpuSensors: constructing..."); return true; }
 
     property int updateInterval: 2000
 
@@ -98,6 +99,7 @@ Item {
     }
 
     function refreshDiscovered() {
+        console.debug("[KVitals] GpuSensors: scan started. rows = " + flatSensors.rowCount());
         var found = [];
         for (var row = 0; row < flatSensors.rowCount(); row++) {
             var idx = flatSensors.index(row, 0);
@@ -108,7 +110,9 @@ Item {
             found.push({ id: match[1], name: "GPU " + (found.length + 1) });
         }
 
+        console.debug("[KVitals] GpuSensors: scan finished. found = " + JSON.stringify(found));
         if (JSON.stringify(found) !== JSON.stringify(_discovered)) {
+            console.warn("[KVitals] GpuSensors: discovered GPUs updated = " + JSON.stringify(found));
             _discovered = found;
             if (typeof Plasmoid !== "undefined" && Plasmoid.configuration)
                 Plasmoid.configuration.gpuDiscovered =
@@ -116,15 +120,31 @@ Item {
         }
     }
 
-    Connections {
-        target: flatSensors
-        function onRowsInserted() { root.refreshDiscovered(); }
-        function onRowsRemoved()  { root.refreshDiscovered(); }
-        function onModelReset()   { root.refreshDiscovered(); }
-        function onDataChanged()  { root.refreshDiscovered(); }
+    property bool _discoveryDirty: false
+
+    Timer {
+        id: discoveryTimer
+        interval: 500
+        repeat: false
+        running: _discoveryDirty
+        onTriggered: {
+            _discoveryDirty = false;
+            root.refreshDiscovered();
+        }
     }
 
-    Component.onCompleted: refreshDiscovered()
+    Connections {
+        target: flatSensors
+        function onRowsInserted()    { root._discoveryDirty = true; }
+        function onRowsRemoved()     { root._discoveryDirty = true; }
+        function onModelReset()      { root._discoveryDirty = true; }
+        function onDataChanged()     { root._discoveryDirty = true; }
+    }
+
+    Component.onCompleted: {
+        console.warn("[KVitals] GpuSensors: ready. selection=" + gpuSelection);
+        refreshDiscovered();
+    }
 
     // -------------------------------------------------------------------------
     // Step 2: Compute active sensor IDs — per GPU, only poll enabled sub-metrics
