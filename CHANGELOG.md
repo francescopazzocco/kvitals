@@ -2,6 +2,12 @@
 
 All notable changes to KVitals will be documented in this file.
 
+## [2.10.1] - 2026-06-29
+
+### Fixed
+
+- **Plasmashell Boot Crashes**: Resolved a critical race condition that caused `plasmashell` to enter a crash loop during system boot. Sensor module loading is now deferred until after window attachment is fully complete, preventing the `KirigamiPlasmaStyle` SIGSEGV (#49).
+
 ## [2.10.0] - 2026-06-27
 
 ### Added
