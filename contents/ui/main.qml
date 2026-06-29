@@ -130,51 +130,148 @@ PlasmoidItem {
             warningColor, criticalColor, baseTextColor, false)
         : baseTextColor
 
-    // --- Sensor components ---
+    // --- Deferred sensor loading ---
+    // Sensors are loaded AFTER the window attachment is complete to avoid
+    // triggering a SIGSEGV in KirigamiPlasmaStyle's PlasmaTheme::syncColors()
+    // during the recursive QQuickItemPrivate::refWindow() walk at boot.
+    // See: https://github.com/nicehash/KVitals/issues/42
 
-    CpuSensors {
-        id: cpu
-        updateInterval: root.updateInterval
+    property bool _sensorsReady: sensorLoader.status === Loader.Ready
+    property var cpu:     _sensorsReady ? sensorLoader.item.cpu     : _nullCpu
+    property var memory:  _sensorsReady ? sensorLoader.item.memory  : _nullMemory
+    property var temp:    _sensorsReady ? sensorLoader.item.temp    : _nullTemp
+    property var gpu:     _sensorsReady ? sensorLoader.item.gpu     : _nullGpu
+    property var battery: _sensorsReady ? sensorLoader.item.battery : _nullBattery
+    property var network: _sensorsReady ? sensorLoader.item.network : _nullNetwork
+    property var disk:    _sensorsReady ? sensorLoader.item.disk    : _nullDisk
+
+    // Safe defaults so bindings don't error before sensors load
+    QtObject {
+        id: _nullCpu
+        property string cpuValue: ""
+        property string cpuFreqValue: ""
+        property real cpuNumericValue: NaN
+    }
+    QtObject {
+        id: _nullMemory
+        property string ramValue: ""
+        property real ramPercentage: NaN
+    }
+    QtObject {
+        id: _nullTemp
+        property string tempValue: "--"
+        property real tempNumericValue: NaN
+    }
+    QtObject {
+        id: _nullGpu
+        property real gpuUsageNumber: NaN
+        property real gpuTempNumber: NaN
+        property string gpuValue: ""
+        property string gpuRamValue: ""
+        property string gpuTempValue: ""
+        property string gpuDisplayValue: ""
+        property bool hasGpuData: false
+        property bool hasGpuUsageData: false
+        property bool hasGpuVramData: false
+        property bool hasGpuTempData: false
+        property var gpuDataList: []
+        property var discoveredGpus: []
+    }
+    QtObject {
+        id: _nullBattery
+        property string batValue: ""
+        property string powerValue: ""
+        property real batNumericValue: NaN
+    }
+    QtObject {
+        id: _nullNetwork
+        property string netDownValue: "0"
+        property string netUpValue: "0"
+    }
+    QtObject {
+        id: _nullDisk
+        property string diskReadValue: "0"
+        property string diskWriteValue: "0"
+        property string diskTempValue: ""
+        property real diskTempNumber: NaN
     }
 
-    MemorySensors {
-        id: memory
-        updateInterval: root.updateInterval
+    Loader {
+        id: sensorLoader
+        active: false
+        sourceComponent: Item {
+            property alias cpu:     _cpu
+            property alias memory:  _memory
+            property alias temp:    _temp
+            property alias gpu:     _gpu
+            property alias battery: _battery
+            property alias network: _network
+            property alias disk:    _disk
+
+            CpuSensors {
+                id: _cpu
+                updateInterval: root.updateInterval
+            }
+
+            MemorySensors {
+                id: _memory
+                updateInterval: root.updateInterval
+            }
+
+            TempSensors {
+                id: _temp
+                updateInterval: root.updateInterval
+                tempUnit: root.tempUnit
+            }
+
+            GpuSensors {
+                id: _gpu
+                updateInterval: root.updateInterval
+                gpuSelection: root.gpuSelection
+                gpuLabels: root.gpuLabels
+                tempUnit: root.tempUnit
+            }
+
+            BatterySensors {
+                id: _battery
+                updateInterval: root.updateInterval
+                batteryDevice: root.batteryDevice || "auto"
+            }
+
+            NetworkSensors {
+                id: _network
+                updateInterval: root.updateInterval
+                networkInterface: root.networkInterface
+                networkUnit: root.networkUnit
+            }
+
+            DiskSensors {
+                id: _disk
+                updateInterval: root.updateInterval
+                enabled: root.showDisk
+                tempUnit: root.tempUnit
+                networkUnit: root.networkUnit
+            }
+        }
     }
 
-    TempSensors {
-        id: temp
-        updateInterval: root.updateInterval
-        tempUnit: root.tempUnit
+    // Activate the sensor loader after the initial refWindow() walk is complete.
+    // The SIGSEGV in PlasmaTheme::syncColors() happens synchronously during
+    // ShellCorona::load() → refWindow(), so deferring to the next event loop
+    // iteration (Timer interval: 0) guarantees we're past the dangerous window.
+    Timer {
+        id: sensorActivationTimer
+        interval: 0
+        repeat: false
+        onTriggered: {
+            console.warn("[KVitals] main.qml: deferred load — activating sensors...");
+            sensorLoader.active = true;
+        }
     }
 
-    GpuSensors {
-        id: gpu
-        updateInterval: root.updateInterval
-        gpuSelection: root.gpuSelection
-        gpuLabels: root.gpuLabels
-        tempUnit: root.tempUnit
-    }
-
-    BatterySensors {
-        id: battery
-        updateInterval: root.updateInterval
-        batteryDevice: root.batteryDevice || "auto"
-    }
-
-    NetworkSensors {
-        id: network
-        updateInterval: root.updateInterval
-        networkInterface: root.networkInterface
-        networkUnit: root.networkUnit
-    }
-
-    DiskSensors {
-        id: disk
-        updateInterval: root.updateInterval
-        enabled: root.showDisk
-        tempUnit: root.tempUnit
-        networkUnit: root.networkUnit
+    Component.onCompleted: {
+        console.warn("[KVitals] main.qml: ready. config: showCpu=" + showCpu + " showGpu=" + showGpu + " showBattery=" + showBattery + " showNetwork=" + showNetwork + " showDisk=" + showDisk);
+        sensorActivationTimer.start();
     }
 
     // --- Representations ---
@@ -426,9 +523,5 @@ PlasmoidItem {
             }
         }
         return parts.join("\n");
-    }
-
-    Component.onCompleted: {
-        console.warn("[KVitals] main.qml: ready. config: showCpu=" + showCpu + " showGpu=" + showGpu + " showBattery=" + showBattery + " showNetwork=" + showNetwork + " showDisk=" + showDisk);
     }
 }
