@@ -101,7 +101,7 @@ Item {
             if (fanUnit === "percent") {
                 var max = _modelMax(f.id);
                 if (isNaN(max) || max <= 0) {
-                    continue;
+                    max = 6000;
                 }
                 var pct = Math.min(100, Math.round((v / max) * 100));
                 str = pct + "%";
