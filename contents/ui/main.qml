@@ -58,6 +58,9 @@ PlasmoidItem {
     property string batteryDevice: Plasmoid.configuration.batteryDevice
     property string gpuSelection: Plasmoid.configuration.gpuSelection
     property string gpuLabels: Plasmoid.configuration.gpuLabels
+    property bool dgpuMonitoringEnabled: Plasmoid.configuration.dgpuMonitoringEnabled
+    property string dgpuSensorId: Plasmoid.configuration.dgpuSensorId || ""
+    property bool dgpuActive: false
     property string diskLabels: Plasmoid.configuration.diskLabels
     property string displayMode: Plasmoid.configuration.displayMode
     property string layoutType: Plasmoid.configuration.layoutType
@@ -340,6 +343,9 @@ PlasmoidItem {
                 gpuLabels: root.gpuLabels
                 tempUnit: root.tempUnit
                 gpuMetrics: root.gpuMetrics
+                dgpuMonitoringEnabled: root.dgpuMonitoringEnabled
+                dgpuSensorId: root.dgpuSensorId
+                dgpuActive: root.dgpuActive
             }
 
             BatterySensors {
@@ -567,6 +573,10 @@ PlasmoidItem {
         chartVersion: root.chartVersion
         pinned: root.pinned
         onTogglePinned: root.pinned = !root.pinned
+        dgpuToggleVisible: root.dgpuMonitoringEnabled && root.dgpuSensorId !== ""
+        dgpuActive: root.dgpuActive
+        dgpuIcon: root.gpuIcon
+        onToggleDgpu: root.dgpuActive = !root.dgpuActive
         metricsModel: {
             var items = [];
             for (var i = 0; i < root.orderedKeys.length; i++) {

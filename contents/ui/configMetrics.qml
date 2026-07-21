@@ -40,6 +40,8 @@ KCM.SimpleKCM {
     property string cfg_batteryDevice
     property string cfg_gpuSelection: ""
     property string cfg_gpuLabels: ""
+    property bool cfg_dgpuMonitoringEnabled: false
+    property string cfg_dgpuSensorId: ""
     property string cfg_diskLabels: ""
     property string cfg_metricOrder: "cpu,ram,temp,gpu,bat,pwr,net,disk"
     property bool cfg_mergeCpuTemp: false
@@ -783,6 +785,34 @@ KCM.SimpleKCM {
                                             }
                                         }
                                     }
+                                }
+                            }
+
+                            // dGPU power-saving toggle
+                            CheckBox {
+                                text: i18n("Show power-saving toggle for discrete GPU in popup")
+                                checked: cfg_dgpuMonitoringEnabled
+                                enabled: metricsPage.discoveredGpus.length > 1
+                                onToggled: cfg_dgpuMonitoringEnabled = checked
+                                ToolTip.text: i18n("Requires more than one GPU to be detected")
+                                ToolTip.visible: !enabled && hovered
+                            }
+
+                            RowLayout {
+                                visible: cfg_dgpuMonitoringEnabled && metricsPage.discoveredGpus.length > 1
+                                spacing: Kirigami.Units.smallSpacing
+                                Layout.leftMargin: Kirigami.Units.gridUnit + Kirigami.Units.smallSpacing
+                                Label { text: i18n("Discrete GPU:"); opacity: 0.8 }
+                                ComboBox {
+                                    id: dgpuCombo
+                                    implicitWidth: Kirigami.Units.gridUnit * 10
+                                    model: metricsPage.discoveredGpus.map(function(g){ return g.name; })
+                                    currentIndex: {
+                                        for (var i = 0; i < metricsPage.discoveredGpus.length; i++)
+                                            if (metricsPage.discoveredGpus[i].id === cfg_dgpuSensorId) return i;
+                                        return -1;
+                                    }
+                                    onActivated: cfg_dgpuSensorId = metricsPage.discoveredGpus[currentIndex].id
                                 }
                             }
                         }
