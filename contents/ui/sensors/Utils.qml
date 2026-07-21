@@ -11,20 +11,35 @@ QtObject {
     }
 
     // unit: "bytes" (default, KB/MB) or "bits" (Kb/Mb)
-    // Suffix convention: uppercase B = bytes, lowercase b = bits
+    // Always uses 3 significant figures, padded to 6 chars for stable display
     function formatRate(bytesPerSec, unit) {
         if (typeof bytesPerSec !== "number" || isNaN(bytesPerSec))
-            return "...";
+            return "...".padStart(6);
+        var val, divisor, suffixes;
         if (unit === "bits") {
-            var bps = bytesPerSec * 8;
-            if (bps >= 1000000)
-                return (bps / 1000000).toFixed(1) + "Mb";
-            return Math.max(0, bps / 1000).toFixed(1) + "Kb";
+            val = Math.max(0, bytesPerSec * 8);
+            divisor = 1000;
+            suffixes = ["b", "Kb", "Mb", "Gb", "Tb"];
+        } else {
+            val = Math.max(0, bytesPerSec);
+            divisor = 1024;
+            suffixes = ["B", "KB", "MB", "GB", "TB"];
         }
-        var kbps = bytesPerSec / 1024;
-        if (kbps >= 1024)
-            return (kbps / 1024).toFixed(1) + "MB";
-        return Math.max(0, kbps).toFixed(1) + "KB";
+        var absVal = val;
+        var si = 0;
+        var scaled = absVal;
+        while (scaled >= divisor && si < suffixes.length - 1) {
+            scaled /= divisor;
+            si++;
+        }
+        var num;
+        if (scaled < 10)
+            num = scaled.toFixed(2);
+        else if (scaled < 100)
+            num = scaled.toFixed(1);
+        else
+            num = String(Math.round(scaled));
+        return (num + suffixes[si]).padStart(6);
     }
 
     // celsiusValue: raw °C number from sensor; unit: "C" or "F"
