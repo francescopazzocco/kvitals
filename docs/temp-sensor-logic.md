@@ -45,7 +45,7 @@ then iterates rows, reading `SensorId` via
 
 #### Why ISA bus?
 
-Super I/O chips (Nuvoton nct6799, ITE it87*, Winbond w83627*, Fintek f71869\*)
+Super I/O chips (Nuvoton nct6799, ITE it87*, Winbond w83627*, Fintek f71869*)
 — the real chipset/motherboard temperature sensors — are always on the
 LPC/ISA bus, so their lm-sensors adapter name contains `-isa-`.
 
@@ -99,3 +99,7 @@ switches to a chipset sensor.
 - Changes to the sensor tree (e.g., hot-plugging a hwmon module) trigger
   `refreshDiscovered()` via `onRowsInserted`/`onRowsRemoved`/`onModelReset`
   signals from `KDescendantsProxyModel`
+
+## Branch State
+
+Current branch: `fans-v2`, rebased on `feat/metrics-restructure`.

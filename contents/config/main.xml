@@ -40,8 +40,8 @@
         <entry name="gpuEnabled" type="Bool">
             <default>true</default>
         </entry>
-        <entry name="gpuMetrics" type="String">
-            <default></default>
+        <entry name="gpuSubMetrics" type="String">
+            <default>usage,vram,temp</default>
         </entry>
         <entry name="gpuVisibility" type="String">
             <default>both</default>
@@ -274,8 +274,17 @@
         <entry name="networkUnit" type="String">
             <default>bytes</default>
         </entry>
+        <entry name="fanLabel" type="String">
+            <default>FAN</default>
+        </entry>
+        <entry name="fanLabels" type="String">
+            <default></default>
+        </entry>
         <entry name="fanUnit" type="String">
             <default>rpm</default>
+        </entry>
+        <entry name="fanMaxRpm" type="Int">
+            <default>2000</default>
         </entry>
 
         <!-- Opacity -->

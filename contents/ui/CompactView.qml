@@ -25,13 +25,28 @@ RowLayout {
 
     signal toggleExpanded()
 
+    // Sticky-width state, keyed by a stable per-item/per-segment string
+    // (see itemData.key / segment.key in main.qml). Must live here rather
+    // than on the value Label itself: metricsModel is a plain JS array
+    // rebuilt on every sensor poll, so the Repeater's delegates (and any
+    // property on them) are destroyed and recreated every cycle. Keeping
+    // the map on this long-lived item is what lets a width persist.
+    property var _stickyWidths: ({})
+    function _stickyWidth(key, w) {
+        var cur = _stickyWidths[key] || 0;
+        if (w > cur) { _stickyWidths[key] = w; cur = w; }
+        return cur;
+    }
+
     TapHandler {
         onTapped: compactRow.toggleExpanded()
     }
 
     // Shared segments renderer
     component SegmentsRow: Row {
+        id: segRoot
         required property var segments
+        property string parentKey: ""
         spacing: 2
 
         Repeater {
@@ -50,12 +65,31 @@ RowLayout {
                     color: compactRow.baseTextColor
                     opacity: compactRow.separatorOpacity
                 }
+                // Optional per-segment sub-label (e.g. fan number): rendered in
+                // the label color so it's visually distinct from the value.
+                PlasmaComponents.Label {
+                    visible: !!modelData.label
+                    text: modelData.label || ""
+                    font.pixelSize: compactRow.effectiveFontSize
+                    font.family: compactRow.fontFamily
+                    font.bold: compactRow.fontBold
+                    color: compactRow.labelColor
+                    opacity: compactRow.labelOpacity
+                }
                 PlasmaComponents.Label {
                     text: modelData.value
                     font.pixelSize: compactRow.effectiveFontSize
                     font.family: compactRow.fontFamily
                     font.bold: compactRow.fontBold
                     color: modelData.color
+                    horizontalAlignment: Text.AlignRight
+                    // Row is a positioner, not a Layout: pad via plain `width`
+                    // (Layout.preferredWidth has no effect here). Width only
+                    // ever grows within the session to avoid reflow when a
+                    // fluctuating value crosses a digit-count boundary.
+                    width: compactRow._stickyWidth(
+                        segRoot.parentKey + ":" + (modelData.key !== undefined ? modelData.key : index),
+                        implicitWidth)
                 }
             }
         }
@@ -132,18 +166,25 @@ RowLayout {
             }
 
             PlasmaComponents.Label {
+                id: valueLabel
                 visible: !itemData.segments
                 text: itemData.value || ""
                 font.pixelSize: compactRow.effectiveFontSize
                 font.family: compactRow.fontFamily
                 font.bold: compactRow.fontBold
                 color: itemData.color || compactRow.baseTextColor
+                horizontalAlignment: Text.AlignRight
                 Layout.alignment: Qt.AlignVCenter
+                // Width only ever grows within the session: avoids the panel
+                // reflowing every time a fluctuating value (e.g. RPM) crosses
+                // a digit-count boundary.
+                Layout.preferredWidth: compactRow._stickyWidth(itemData.key || ("idx:" + itemIndex), implicitWidth)
             }
 
             SegmentsRow {
                 visible: !!itemData.segments
                 segments: itemData.segments || []
+                parentKey: itemData.key || ("idx:" + itemIndex)
                 Layout.alignment: Qt.AlignVCenter
             }
         }
@@ -184,11 +225,16 @@ RowLayout {
                         font.bold: compactRow.fontBold
                         color: itemData.color || compactRow.baseTextColor
                         horizontalAlignment: Text.AlignHCenter
+                        // Width only ever grows within the session: avoids the panel
+                        // reflowing every time a fluctuating value (e.g. RPM) crosses
+                        // a digit-count boundary.
+                        Layout.preferredWidth: compactRow._stickyWidth(itemData.key || ("idx:" + itemIndex), implicitWidth)
                     }
 
                     SegmentsRow {
                         visible: !!itemData.segments
                         segments: itemData.segments || []
+                        parentKey: itemData.key || ("idx:" + itemIndex)
                         Layout.alignment: Qt.AlignHCenter
                     }
                 }

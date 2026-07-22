@@ -29,7 +29,7 @@ KCM.SimpleKCM {
     property string cfg_tempVisibility: "both"
 
     property bool cfg_gpuEnabled
-    property string cfg_gpuMetrics: ""
+    property string cfg_gpuSubMetrics: "usage,vram,temp"
     property string cfg_gpuSelection: ""
     property string cfg_gpuLabels: ""
     property string cfg_gpuVisibility: "both"
@@ -136,6 +136,7 @@ KCM.SimpleKCM {
         switch (key) {
             case "cpu":  str = cfg_cpuSubMetrics;  break;
             case "ram":  str = cfg_ramSubMetrics;  break;
+            case "gpu":  str = cfg_gpuSubMetrics;  break;
             case "bat":  str = cfg_batSubMetrics;  break;
             case "net":  str = cfg_netSubMetrics;  break;
             case "disk": str = cfg_diskSubMetrics; break;
@@ -216,6 +217,7 @@ KCM.SimpleKCM {
         switch (key) {
             case "cpu":  cfg_cpuSubMetrics  = str; break;
             case "ram":  cfg_ramSubMetrics  = str; break;
+            case "gpu":  cfg_gpuSubMetrics  = str; break;
             case "bat":  cfg_batSubMetrics  = str; break;
             case "net":  cfg_netSubMetrics  = str; break;
             case "disk": cfg_diskSubMetrics = str; break;
@@ -287,35 +289,6 @@ KCM.SimpleKCM {
 
     readonly property var discoveredGpus: _liveDiscoveredGpus
 
-    function parseGpuMetrics(str) {
-        var result = {};
-        if (!str) return result;
-        str.split("|").forEach(function(pair) {
-            var sep = pair.indexOf(":");
-            if (sep > 0) {
-                var id = pair.substring(0, sep);
-                var mstr = pair.substring(sep + 1);
-                result[id] = mstr.length > 0 ? mstr.split(",") : [];
-            }
-        });
-        return result;
-    }
-
-    function saveGpuMetric(gpuId, metric, enable) {
-        var mm = parseGpuMetrics(cfg_gpuMetrics);
-        var current = mm[gpuId] || ["usage", "vram", "temp"];
-        if (enable) {
-            if (current.indexOf(metric) < 0) current.push(metric);
-        } else {
-            current = current.filter(function(m){ return m !== metric; });
-        }
-        var canonical = ["usage", "vram", "temp"];
-        current.sort(function(a, b){ return canonical.indexOf(a) - canonical.indexOf(b); });
-        mm[gpuId] = current;
-        var parts = [];
-        for (var id in mm) parts.push(id + ":" + mm[id].join(","));
-        cfg_gpuMetrics = parts.join("|");
-    }
 
     // GPU label helpers
     function parseGpuLabels(str) {
@@ -404,9 +377,114 @@ KCM.SimpleKCM {
         cfg_diskLabels = parts.join("|");
     }
 
-    // Network interface discovery
-    property var ifaceList: ["auto"]
+    // --- Fan discovery ---
 
+    property var _liveDiscoveredFans: []
+
+    Timer {
+        id: fanRefreshDebounce
+        interval: 100
+        repeat: false
+        onTriggered: {
+            var ids = [];
+            for (var row = 0; row < cfgFlatSensors.rowCount(); row++) {
+                var idx = cfgFlatSensors.index(row, 0);
+                var sensorId = cfgFlatSensors.data(idx, Sensors.SensorTreeModel.SensorId);
+                if (!sensorId) continue;
+                var match = sensorId.match(/^(lmsensors|cpu|gpu)\/.*\/fan\d+$/i);
+                if (!match) continue;
+                if (ids.indexOf(sensorId) < 0) ids.push(sensorId);
+            }
+            // Same stable-numbering rationale as FanSensors.qml: sort by id
+            // so the config page's "Fan N" numbering matches the panel's and
+            // stays consistent across sessions.
+            ids.sort();
+            var found = ids.map(function(id, i) { return { id: id, name: "Fan " + (i + 1) }; });
+            if (JSON.stringify(found) !== JSON.stringify(_liveDiscoveredFans))
+                _liveDiscoveredFans = found;
+        }
+    }
+
+    function refreshConfigFans() { fanRefreshDebounce.restart(); }
+
+    property var _discoveryDirtyFan: false
+
+    Timer {
+        id: fanDiscoveryTimer
+        interval: 500
+        repeat: false
+        running: _discoveryDirtyFan
+        onTriggered: { _discoveryDirtyFan = false; metricsPage.refreshConfigFans(); }
+    }
+
+    Connections {
+        target: cfgFlatSensors
+        function onRowsInserted() { metricsPage._discoveryDirtyFan = true; }
+        function onRowsRemoved()  { metricsPage._discoveryDirtyFan = true; }
+        function onModelReset()   { metricsPage._discoveryDirtyFan = true; }
+        function onDataChanged()  { metricsPage._discoveryDirtyFan = true; }
+    }
+
+    readonly property var discoveredFans: _liveDiscoveredFans
+
+    // --- Fan max-RPM capability check ---
+    // The "Max RPM for percentage" fallback is dead config when every
+    // discovered fan already reports its own max — only show it when at
+    // least one fan doesn't. Defaults to true (shown) until we've actually
+    // checked, so it doesn't appear to silently vanish for people who need it.
+
+    property bool fanMaxFallbackNeeded: true
+
+    Sensors.SensorDataModel {
+        id: fanMaxCheck
+        sensors: metricsPage.discoveredFans.map(function(f){ return f.id; })
+        updateRateLimit: 2000
+        enabled: metricsPage.discoveredFans.length > 0
+
+        onDataChanged: metricsPage._recomputeFanMaxFallback()
+        onReadyChanged: { if (ready) metricsPage._recomputeFanMaxFallback(); }
+    }
+
+    function _recomputeFanMaxFallback() {
+        for (var i = 0; i < discoveredFans.length; i++) {
+            var col = fanMaxCheck.column(discoveredFans[i].id);
+            var idx = col >= 0 ? fanMaxCheck.index(0, col) : null;
+            var val = idx && idx.valid ? fanMaxCheck.data(idx, Sensors.SensorDataModel.Maximum) : undefined;
+            if (val === undefined || val === null || val <= 0) {
+                fanMaxFallbackNeeded = true;
+                return;
+            }
+        }
+        fanMaxFallbackNeeded = false;
+    }
+
+    // --- Fan label helpers ---
+
+    function parseFanLabels(str) {
+        var result = Object.create(null);
+        if (!str) return result;
+        str.split("|").forEach(function(pair) {
+            var sep = pair.indexOf(":");
+            if (sep > 0) result[pair.substring(0, sep)] = pair.substring(sep + 1);
+        });
+        return result;
+    }
+
+    function saveFanLabel(fanId, label) {
+        var labels = parseFanLabels(cfg_fanLabels);
+        // "|" is the record separator in the stored string — strip it from
+        // user input so a label containing it can't corrupt the mapping
+        // (colons are fine: parseFanLabels only splits on the first one).
+        var trimmed = (label || "").replace(/\|/g, "").trim();
+        if (trimmed.length > 0) labels[fanId] = trimmed;
+        else delete labels[fanId];
+        var parts = [];
+        for (var id in labels) parts.push(id + ":" + labels[id]);
+        cfg_fanLabels = parts.join("|");
+    }
+
+    // --- Network interface discovery ---
+    property var ifaceList: ["auto"]
     Plasma5Support.DataSource {
         id: ifaceSource
         engine: "executable"
@@ -452,6 +530,13 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: i18n("Metrics Configuration")
         }
 
+        Label {
+            text: i18n("Upgrading from an older version may reset your visibility and sub-metric choices below to defaults.")
+            opacity: 0.6
+            font.italic: true
+            wrapMode: Text.WordWrap
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 28
+        }
         ColumnLayout {
             spacing: 0
             Layout.fillWidth: true
@@ -583,9 +668,8 @@ KCM.SimpleKCM {
                                 }
                             }
 
-                            // Sub-metric checkboxes (hidden for GPU — handled per-device below)
+                            // Sub-metric checkboxes
                             Flow {
-                                visible: catDelegate.key !== "gpu"
                                 spacing: Kirigami.Units.largeSpacing
                                 Layout.fillWidth: true
 
@@ -622,7 +706,7 @@ KCM.SimpleKCM {
                             // (that choice still governs the compact panel on its own).
                             Button {
                                 visible: catDelegate.key === "ram"
-                                text: i18n("Show both % and Used in popup")
+                                text: i18n("Show both in popup window")
                                 checkable: true
                                 checked: cfg_ramWidgetShowBoth
                                 // Greyed out only when both are already individually
@@ -757,28 +841,7 @@ KCM.SimpleKCM {
                                                     onTextEdited: metricsPage.saveGpuLabel(gpuDelegate.modelData.id, text)
                                                 }
                                             }
-                                            Flow {
-                                                spacing: Kirigami.Units.largeSpacing
-                                                Layout.fillWidth: true
-                                                Layout.topMargin: Kirigami.Units.smallSpacing
-                                                Repeater {
-                                                    model: [
-                                                        {key: "usage", label: i18n("Usage")},
-                                                        {key: "vram",  label: i18n("VRAM")},
-                                                        {key: "temp",  label: i18n("Temperature")}
-                                                    ]
-                                                    delegate: CheckBox {
-                                                        required property var modelData
-                                                        text: modelData.label
-                                                        checked: {
-                                                            var mm = metricsPage.parseGpuMetrics(cfg_gpuMetrics);
-                                                            var mList = mm[gpuDelegate.modelData.id] || ["usage", "vram", "temp"];
-                                                            return mList.indexOf(modelData.key) >= 0;
-                                                        }
-                                                        onToggled: metricsPage.saveGpuMetric(gpuDelegate.modelData.id, modelData.key, checked)
-                                                    }
-                                                }
-                                            }
+
                                         }
                                     }
                                 }
@@ -868,6 +931,82 @@ KCM.SimpleKCM {
                         }
                     }
 
+                    // Fan settings
+                    Loader {
+                        active: catDelegate.key === "fan" && catDelegate.catEnabled
+                        visible: active
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Kirigami.Units.gridUnit * 2 + Kirigami.Units.smallSpacing
+                        Layout.topMargin: Kirigami.Units.smallSpacing
+                        Layout.bottomMargin: Kirigami.Units.smallSpacing
+
+                        sourceComponent: ColumnLayout {
+                            spacing: Kirigami.Units.smallSpacing
+
+                            RowLayout {
+                                spacing: Kirigami.Units.smallSpacing
+                                Label { text: i18n("Label:"); opacity: 0.8 }
+                                TextField {
+                                    implicitWidth: Kirigami.Units.gridUnit * 12
+                                    text: cfg_fanLabel
+                                    placeholderText: i18n("FAN")
+                                    onTextEdited: cfg_fanLabel = text.trim() || "FAN"
+                                }
+                            }
+
+                            // Per-fan naming
+                            ColumnLayout {
+                                spacing: Kirigami.Units.smallSpacing
+                                Layout.fillWidth: true
+
+                                Repeater {
+                                    model: metricsPage.discoveredFans
+
+                                    delegate: RowLayout {
+                                        required property var modelData
+                                        visible: metricsPage.discoveredFans.length > 0
+                                        spacing: Kirigami.Units.smallSpacing
+                                        Layout.leftMargin: Kirigami.Units.smallSpacing
+
+                                        Label {
+                                            text: modelData.name + ":"
+                                            opacity: 0.8
+                                            Layout.minimumWidth: Kirigami.Units.gridUnit * 3
+                                        }
+                                        TextField {
+                                            implicitWidth: Kirigami.Units.gridUnit * 12
+                                            text: metricsPage.parseFanLabels(cfg_fanLabels)[modelData.id] || ""
+                                            placeholderText: modelData.name
+                                            onTextEdited: metricsPage.saveFanLabel(modelData.id, text)
+                                        }
+                                    }
+                                }
+                            }
+
+                            RowLayout {
+                                visible: metricsPage.fanMaxFallbackNeeded
+                                spacing: Kirigami.Units.smallSpacing
+                                Label { text: i18n("Max RPM for percentage:"); opacity: 0.8 }
+                                SpinBox {
+                                    from: 500
+                                    to: 9999
+                                    stepSize: 100
+                                    value: cfg_fanMaxRpm
+                                    onValueChanged: cfg_fanMaxRpm = value
+                                    implicitWidth: Kirigami.Units.gridUnit * 6
+                                }
+                            }
+
+                            Label {
+                                visible: metricsPage.fanMaxFallbackNeeded
+                                text: i18n("Your fans don't report a max RPM: enter one manually (check your fan's specs online). Estimated values show \"~\".")
+                                opacity: 0.6
+                                font.italic: true
+                                wrapMode: Text.WordWrap
+                                Layout.maximumWidth: Kirigami.Units.gridUnit * 28
+                            }
+                        }
+                    }
                     // ── Divider ────────────────────────────────────────────
                     Rectangle {
                         visible: index < metricsPage.currentOrder.length - 1

@@ -48,7 +48,7 @@ PlasmoidItem {
     property string tempLabel:      Plasmoid.configuration.tempLabel || "System"
 
     property bool gpuEnabled:      Plasmoid.configuration.gpuEnabled
-    property string gpuMetrics:    Plasmoid.configuration.gpuMetrics || ""
+    property string gpuSubMetrics: Plasmoid.configuration.gpuSubMetrics || "usage,vram,temp"
     property string gpuSelection:  Plasmoid.configuration.gpuSelection  || ""
     property string gpuLabels:     Plasmoid.configuration.gpuLabels     || ""
 
@@ -108,6 +108,9 @@ PlasmoidItem {
     property string tempUnit:    Plasmoid.configuration.tempUnit    || "C"
     property string networkUnit: Plasmoid.configuration.networkUnit || "bytes"
     property string fanUnit:     Plasmoid.configuration.fanUnit     || "rpm"
+    property string fanLabel:    Plasmoid.configuration.fanLabel    || "FAN"
+    property string fanLabels:   Plasmoid.configuration.fanLabels   || ""
+    property int fanMaxRpm:      Plasmoid.configuration.fanMaxRpm   || 2000
 
     // --- Per-metric visibility ---
 
@@ -132,6 +135,7 @@ PlasmoidItem {
         switch (key) {
             case "cpu":  return cpuSubMetrics;
             case "ram":  return ramSubMetrics;
+            case "gpu":  return gpuSubMetrics;
             case "bat":  return batSubMetrics;
             case "net":  return netSubMetrics;
             case "disk": return diskSubMetrics;
@@ -300,6 +304,13 @@ PlasmoidItem {
                 if (push(h[tKey], gl[i].tempNumber)) changed = true;
             }
 
+            var fl = root.fans.fanDataList;
+            for (var fi = 0; fi < fl.length; fi++) {
+                var fKey = "fan:" + fl[fi].id;
+                if (!h[fKey]) h[fKey] = [];
+                if (push(h[fKey], fl[fi].valueNumber)) changed = true;
+            }
+
             if (changed) root.chartVersion++;
         }
     }
@@ -406,7 +417,7 @@ PlasmoidItem {
             GpuSensors {
                 id: _gpu
                 updateInterval: root.updateInterval
-                gpuMetrics: root.gpuMetrics
+                gpuSubMetrics: root.gpuSubMetrics
                 gpuSelection: root.gpuSelection
                 gpuLabels: root.gpuLabels
                 tempUnit: root.tempUnit
@@ -438,6 +449,8 @@ PlasmoidItem {
                 id: _fans
                 updateInterval: root.updateInterval
                 fanUnit: root.fanUnit
+                fanLabels: root.fanLabels
+                fanMaxRpm: root.fanMaxRpm
             }
 
             UptimeSensors {
@@ -478,13 +491,17 @@ PlasmoidItem {
 
     // === Compact model helper: build segments from sub-metrics ===
 
+    function _fanDisplayValue(fd) {
+        return (fd.isEstimated ? "~" : "") + fd.value;
+    }
+
     function _compactSegments(key, subsList, colorMap) {
         var segs = [];
         for (var si = 0; si < subsList.length; si++) {
             var s = subsList[si];
             var val = _compactSubValue(key, s);
             if (val === null) continue;
-            segs.push({value: val, color: colorMap[s] || root.baseTextColor});
+            segs.push({value: val, color: colorMap[s] || root.baseTextColor, key: s});
         }
         return segs.length > 0 ? segs : null;
     }
@@ -550,56 +567,57 @@ PlasmoidItem {
                     var segs = root._compactSegments("cpu", sm, cpuMap);
                     if (segs) items.push({
                         icon: root.cpuIcon, label: root.cpuLabel + ":",
-                        segments: segs, color: root.cpuColor
+                        segments: segs, color: root.cpuColor, key: "cpu"
                     });
                 }
                 else if (key === "ram") {
                     if (sm.length === 1 && sm[0] === "percentage")
-                        items.push({icon: root.ramIcon, label: root.ramLabel + ":", value: memory.ramPercentValue, color: root.ramColor});
+                        items.push({icon: root.ramIcon, label: root.ramLabel + ":", value: memory.ramPercentValue, color: root.ramColor, key: "ram"});
                     else if (sm.length === 1 && sm[0] === "used")
-                        items.push({icon: root.ramIcon, label: root.ramLabel + ":", value: memory.ramValue, color: root.baseTextColor});
+                        items.push({icon: root.ramIcon, label: root.ramLabel + ":", value: memory.ramValue, color: root.baseTextColor, key: "ram"});
                     else {
                         var ramMap = Object.assign({}, colorMap, {"temp": root.ramTempColor});
                         var rsegs = root._compactSegments("ram", sm, ramMap);
-                        if (rsegs) items.push({icon: root.ramIcon, label: root.ramLabel + ":", segments: rsegs, color: root.ramColor});
+                        if (rsegs) items.push({icon: root.ramIcon, label: root.ramLabel + ":", segments: rsegs, color: root.ramColor, key: "ram"});
                     }
                 }
                 else if (key === "temp") {
                     if (temp.tempValue && temp.tempValue !== "--")
-                        items.push({icon: root.tempIcon, label: root.tempLabel + ":", value: temp.tempValue, color: root.systemColor});
+                        items.push({icon: root.tempIcon, label: root.tempLabel + ":", value: temp.tempValue, color: root.systemColor, key: "temp"});
                 }
                 else if (key === "gpu") {
                     if (gpu.gpuDataList.length > 1) {
                         for (var g = 0; g < gpu.gpuDataList.length; g++) {
                             var gd = gpu.gpuDataList[g];
                             var gsegs = [];
-                            if (gd.usage) gsegs.push({value: gd.usage, color: root.gpuColor});
-                            if (gd.vram)  gsegs.push({value: gd.vram, color: root.baseTextColor});
-                            if (gd.temp)  gsegs.push({value: gd.temp, color: root.gpuTempColor});
+                            for (var si = 0; si < sm.length; si++) {
+                                var val = sm[si] === "usage" ? gd.usage
+                                        : sm[si] === "vram"  ? gd.vram
+                                        : sm[si] === "temp"  ? gd.temp : null;
+                                if (!val) continue;
+                                gsegs.push({value: val, color: colorMap[sm[si]] || root.baseTextColor, key: sm[si]});
+                            }
                             if (gsegs.length > 0)
-                                items.push({icon: root.gpuIcon, label: (gd.name || gd.id) + ":", segments: gsegs, color: root.gpuColor});
+                                items.push({icon: root.gpuIcon, label: (gd.name || gd.id) + ":", segments: gsegs, color: root.gpuColor, key: "gpu:" + gd.id});
                         }
                     } else {
-                        var gsegs2 = [];
-                        if (gpu.hasGpuUsageData) gsegs2.push({value: gpu.gpuValue, color: root.gpuColor});
-                        if (gpu.hasGpuVramData)  gsegs2.push({value: gpu.gpuRamValue, color: root.baseTextColor});
-                        if (gpu.hasGpuTempData)  gsegs2.push({value: gpu.gpuTempValue, color: root.gpuTempColor});
+                        var gsegs2 = root._compactSegments("gpu", sm, colorMap);
                         var gpuLabel = gpu.gpuDataList.length > 0 && gpu.gpuDataList[0].name
                             ? gpu.gpuDataList[0].name + ":"
                             : "GPU:";
-                        if (gsegs2.length > 0) items.push({icon: root.gpuIcon, label: gpuLabel, segments: gsegs2, color: root.gpuColor});
+                        if (gsegs2) items.push({icon: root.gpuIcon, label: gpuLabel, segments: gsegs2, color: root.gpuColor, key: "gpu"});
                     }
                 }
                 else if (key === "bat") {
                     if (sm.length === 1 && sm[0] === "percentage")
-                        items.push({icon: root.batteryIcon, label: "BAT:", value: battery.batValue, color: root.batteryColor});
+                        items.push({icon: root.batteryIcon, label: "BAT:", value: battery.batValue, color: root.batteryColor, key: "bat:percentage"});
                     else if (sm.length === 1 && sm[0] === "power")
-                        items.push({icon: root.powerIcon, label: "PWR:", value: battery.powerValue, color: root.baseTextColor});
+                        items.push({icon: root.powerIcon, label: "PWR:", value: battery.powerValue, color: root.baseTextColor, key: "bat:power"});
                     else {
                         var bsegs = root._compactSegments("bat", sm, colorMap);
                         if (bsegs) items.push({
                             icon: root.batteryIcon, label: "BAT:", segments: bsegs,
-                            color: root.batteryColor
+                            color: root.batteryColor, key: "bat"
                         });
                     }
                 }
@@ -607,20 +625,34 @@ PlasmoidItem {
                     var nsegs = root._compactSegments("net", sm, colorMap);
                     if (nsegs) items.push({
                         icon: root.networkIcon, label: root.netLabel + ":",
-                        segments: nsegs, color: root.baseTextColor
+                        segments: nsegs, color: root.baseTextColor, key: "net"
                     });
                 }
                 else if (key === "disk") {
                     var dsegs = root._compactSegments("disk", sm, colorMap);
                     if (dsegs) items.push({
                         icon: root.diskIcon, label: root.diskLabel + ":",
-                        segments: dsegs, color: root.baseTextColor
+                        segments: dsegs, color: root.baseTextColor, key: "disk"
                     });
                 }
-                else if (key === "fan")
-                    items.push({icon: root.fanIcon, label: "FAN:", value: fans.fanValue, color: root.baseTextColor});
+                else if (key === "fan") {
+                    if (fans.multiFan) {
+                        var fansegs = [];
+                        for (var fci = 0; fci < fans.fanDataList.length; fci++) {
+                            var fcd = fans.fanDataList[fci];
+                            fansegs.push({label: fcd.number + ":", value: root._fanDisplayValue(fcd),
+                                color: root.baseTextColor, key: fcd.id});
+                        }
+                        if (fansegs.length > 0)
+                            items.push({icon: root.fanIcon, label: root.fanLabel + ":", segments: fansegs, color: root.baseTextColor, key: "fan"});
+                    } else if (fans.fanDataList.length > 0) {
+                        var fcd0 = fans.fanDataList[0];
+                        items.push({icon: root.fanIcon, label: root.fanLabel + ":", value: root._fanDisplayValue(fcd0),
+                            color: root.baseTextColor, key: "fan"});
+                    }
+                }
                 else if (key === "uptime")
-                    items.push({icon: root.uptimeIcon, label: "UPTIME:", value: uptime.uptimeValue, color: root.baseTextColor});
+                    items.push({icon: root.uptimeIcon, label: "UPTIME:", value: uptime.uptimeValue, color: root.baseTextColor, key: "uptime"});
             }
             return items;
         }
@@ -685,21 +717,21 @@ PlasmoidItem {
                         for (var g = 0; g < gpu.gpuDataList.length; g++) {
                             var gd = gpu.gpuDataList[g];
                             var label = gd.name || gd.id;
-                            if (gd.usage)
+                            if (root.hasSub("gpu", "usage") && gd.usage)
                                 addMetric(label + " Usage", gd.usage, root.gpuColor, root.gpuIcon, "gpu:" + gd.id, 100);
-                            if (gd.vram)
+                            if (root.hasSub("gpu", "vram") && gd.vram)
                                 addMetric(label + " VRAM", gd.vram, root.baseTextColor, root.gpuIcon);
-                            if (gd.temp)
+                            if (root.hasSub("gpu", "temp") && gd.temp)
                                 addMetric(label + " Temperature", gd.temp, root.gpuTempColor, [root.gpuIcon, root.tempIcon], "gpuTemp:" + gd.id, 100);
                         }
                     } else {
                         var _gpuName = gpu.gpuDataList.length > 0 ? gpu.gpuDataList[0].name : "GPU";
-                        if (gpu.hasGpuUsageData)
+                        if (root.hasSub("gpu", "usage") && gpu.hasGpuUsageData)
                             addMetric(_gpuName + " Usage", gpu.gpuValue, root.gpuColor, root.gpuIcon,
                                 gpu.gpuDataList.length > 0 ? "gpu:" + gpu.gpuDataList[0].id : "", 100);
-                        if (gpu.hasGpuVramData)
+                        if (root.hasSub("gpu", "vram") && gpu.hasGpuVramData)
                             addMetric(_gpuName + " VRAM", gpu.gpuRamValue, root.baseTextColor, root.gpuIcon);
-                        if (gpu.hasGpuTempData)
+                        if (root.hasSub("gpu", "temp") && gpu.hasGpuTempData)
                             addMetric(_gpuName + " Temperature", gpu.gpuTempValue, root.gpuTempColor,
                                 [root.gpuIcon, root.tempIcon],
                                 gpu.gpuDataList.length > 0 ? "gpuTemp:" + gpu.gpuDataList[0].id : "", 100);
@@ -744,8 +776,22 @@ PlasmoidItem {
                             addMetric(root.diskLabel + " Temperature", disk.diskTempValue, root.diskTempColor, [root.diskIcon, root.tempIcon], "diskTemp", 100);
                     }
                 }
-                else if (key === "fan" && root.fanEnabled && fans.hasFanData)
-                    addMetric("Fans", fans.fanValue, root.baseTextColor, root.fanIcon);
+                else if (key === "fan" && root.fanEnabled && fans.hasFanData) {
+                    // Popup always shows RPM — it's the real sensor reading with
+                    // no ambiguity, unlike percentage which may be an estimate.
+                    // Percentage's only benefit (compactness) doesn't apply here.
+                    if (fans.multiFan) {
+                        for (var fn = 0; fn < fans.fanDataList.length; fn++) {
+                            var fd = fans.fanDataList[fn];
+                            addMetric(fd.number + ": " + (fd.name || fd.id), fd.rpmValue,
+                                root.baseTextColor, root.fanIcon, "fan:" + fd.id);
+                        }
+                    } else if (fans.fanDataList.length > 0) {
+                        var fd0 = fans.fanDataList[0];
+                        addMetric(root.fanLabel, fd0.rpmValue,
+                            root.baseTextColor, root.fanIcon, "fan:" + fd0.id);
+                    }
+                }
                 else if (key === "uptime" && root.uptimeEnabled && uptime.uptimeValue)
                     addMetric("System Uptime", uptime.uptimeValue, root.baseTextColor, root.uptimeIcon);
             }
@@ -774,7 +820,7 @@ PlasmoidItem {
                     ramLine += " " + temp.ramTempValue;
                 parts.push(ramLine);
             }
-            else if (key === "temp")
+            else if (key === "temp" && !(root.cpuEnabled && root.hasSub("cpu", "temp")))
                 parts.push(root.tempLabel + ": " + temp.tempValue);
             else if (key === "gpu") {
                 if (gpu.gpuDataList.length > 1) {
@@ -782,17 +828,17 @@ PlasmoidItem {
                         var gd = gpu.gpuDataList[g];
                         var label = gd.name || gd.id;
                         var vals = [];
-                        if (gd.usage) vals.push(gd.usage);
-                        if (gd.vram)  vals.push(gd.vram);
-                        if (gd.temp)  vals.push(gd.temp);
+                        if (root.hasSub("gpu", "usage") && gd.usage) vals.push(gd.usage);
+                        if (root.hasSub("gpu", "vram")  && gd.vram)  vals.push(gd.vram);
+                        if (root.hasSub("gpu", "temp")  && gd.temp)  vals.push(gd.temp);
                         if (vals.length > 0) parts.push(label + ": " + vals.join(" "));
                     }
                 } else {
                     var _gpuName = gpu.gpuDataList.length > 0 ? gpu.gpuDataList[0].name : "GPU";
                     var gpuParts = [];
-                    if (gpu.hasGpuUsageData) gpuParts.push(gpu.gpuValue);
-                    if (gpu.hasGpuVramData)  gpuParts.push(gpu.gpuRamValue);
-                    if (gpu.hasGpuTempData)  gpuParts.push(gpu.gpuTempValue);
+                    if (root.hasSub("gpu", "usage") && gpu.hasGpuUsageData) gpuParts.push(gpu.gpuValue);
+                    if (root.hasSub("gpu", "vram")  && gpu.hasGpuVramData)  gpuParts.push(gpu.gpuRamValue);
+                    if (root.hasSub("gpu", "temp")  && gpu.hasGpuTempData)  gpuParts.push(gpu.gpuTempValue);
                     if (gpuParts.length > 0) parts.push(_gpuName + ": " + gpuParts.join(" "));
                 }
             } else if (key === "bat") {
@@ -810,7 +856,7 @@ PlasmoidItem {
                 if (root.hasSub("disk", "temp") && disk.diskTempValue) dParts.push(disk.diskTempValue);
                 if (dParts.length > 0) parts.push(root.diskLabel + ": " + dParts.join(" "));
             } else if (key === "fan")
-                parts.push("FAN: " + fans.fanValue);
+                parts.push(root.fanLabel + ": " + fans.fanValue);
             else if (key === "uptime")
                 parts.push("UPTIME: " + uptime.uptimeValue);
         }
