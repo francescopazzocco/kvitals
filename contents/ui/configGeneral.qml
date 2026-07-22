@@ -71,23 +71,143 @@ KCM.SimpleKCM {
             visible: configPage.iconsEnabled
         }
 
-        ComboBox {
-            id: fontFamilyCombo
+        RowLayout {
+            id: fontRow
             Kirigami.FormData.label: i18n("Font:")
-            model: Qt.fontFamilies()
-            editable: true
-            currentIndex: {
-                var families = Qt.fontFamilies();
-                var idx = families.indexOf(cfg_fontFamily);
-                return idx >= 0 ? idx : 0;
+
+            property var allFonts: []
+            property var installedDefaults: []
+
+            readonly property var candidateFonts: [
+                "monospace", "Sans Serif", "Hack", "Fira Code",
+                "JetBrains Mono", "Noto Sans", "Roboto", "Inter",
+                "DejaVu Sans Mono", "Liberation Mono"
+            ]
+
+            function ensureFontsLoaded() {
+                if (allFonts.length === 0) {
+                    allFonts = Qt.fontFamilies();
+                    var installed = [];
+                    for (var i = 0; i < candidateFonts.length; i++) {
+                        if (allFonts.indexOf(candidateFonts[i]) !== -1) {
+                            installed.push(candidateFonts[i]);
+                        }
+                    }
+                    installedDefaults = installed;
+                }
             }
-            onActivated: {
-                cfg_fontFamily = currentText;
+
+            function buildInitialList() {
+                ensureFontsLoaded();
+                var list = installedDefaults.slice();
+                if (cfg_fontFamily && list.indexOf(cfg_fontFamily) === -1) {
+                    list.unshift(cfg_fontFamily);
+                }
+                return list;
             }
-            onAccepted: {
-                cfg_fontFamily = editText;
+
+            function filterFonts(query) {
+                ensureFontsLoaded();
+                var q = query.trim().toLowerCase();
+                if (q === "") return buildInitialList();
+                var results = [];
+                for (var i = 0; i < allFonts.length && results.length < 50; i++) {
+                    if (allFonts[i].toLowerCase().indexOf(q) !== -1) {
+                        results.push(allFonts[i]);
+                    }
+                }
+                return results;
             }
-            popup.height: 300
+
+            function populateList(query) {
+                fontSuggestionsModel.clear();
+                var filtered = filterFonts(query);
+                for (var i = 0; i < filtered.length; i++) {
+                    fontSuggestionsModel.append({ name: filtered[i] });
+                }
+            }
+
+            TextField {
+                id: fontInput
+                Layout.preferredWidth: 200
+                text: cfg_fontFamily
+                placeholderText: i18n("Type to search fonts...")
+
+                onTextEdited: {
+                    fontRow.populateList(text);
+                    fontPopup.open();
+                }
+
+                onEditingFinished: {
+                    if (!fontSuggestionsList.activeFocus) {
+                        cfg_fontFamily = text;
+                        fontPopup.close();
+                    }
+                }
+
+                Keys.onEscapePressed: {
+                    fontPopup.close();
+                }
+                Keys.onDownPressed: {
+                    fontRow.populateList(text);
+                    fontPopup.open();
+                    fontSuggestionsList.currentIndex = -1;
+                    fontSuggestionsList.forceActiveFocus();
+                }
+            }
+
+            Popup {
+                id: fontPopup
+                parent: fontInput
+                x: 0
+                y: fontInput.height
+                width: fontInput.width
+                height: Math.min(fontSuggestionsList.contentHeight, 250)
+                padding: 0
+                closePolicy: Popup.CloseOnPressOutside
+
+                ListView {
+                    id: fontSuggestionsList
+                    anchors.fill: parent
+                    clip: true
+                    model: ListModel { id: fontSuggestionsModel }
+
+                    delegate: ItemDelegate {
+                        width: fontSuggestionsList.width
+                        text: model.name
+                        highlighted: fontSuggestionsList.currentIndex === index
+                        onClicked: {
+                            cfg_fontFamily = model.name;
+                            fontInput.text = model.name;
+                            fontPopup.close();
+                            fontInput.forceActiveFocus();
+                        }
+                    }
+
+                    Keys.onReturnPressed: {
+                        if (currentIndex >= 0) {
+                            var item = fontSuggestionsModel.get(currentIndex);
+                            cfg_fontFamily = item.name;
+                            fontInput.text = item.name;
+                        }
+                        fontPopup.close();
+                        fontInput.forceActiveFocus();
+                    }
+
+                    Keys.onEscapePressed: {
+                        fontPopup.close();
+                        fontInput.forceActiveFocus();
+                    }
+                }
+            }
+        }
+
+
+
+        Label {
+            text: i18n("Type to search, ↓ to browse, Enter or click to select")
+            opacity: 0.6
+            font.pointSize: fontSizeSlider.value > 0 ? fontSizeSlider.value * 0.8 : -1
         }
 
         Slider {
