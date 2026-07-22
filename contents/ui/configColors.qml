@@ -20,8 +20,12 @@ KCM.SimpleKCM {
     property alias cfg_cpuCriticalThreshold: cpuCritSlider.value
     property alias cfg_tempWarningThreshold: tempWarnSlider.value
     property alias cfg_tempCriticalThreshold: tempCritSlider.value
+    property alias cfg_systemWarningThreshold: systemWarnSlider.value
+    property alias cfg_systemCriticalThreshold: systemCritSlider.value
     property alias cfg_ramWarningThreshold: ramWarnSlider.value
     property alias cfg_ramCriticalThreshold: ramCritSlider.value
+    property alias cfg_ramTempWarningThreshold: ramTempWarnSlider.value
+    property alias cfg_ramTempCriticalThreshold: ramTempCritSlider.value
     property alias cfg_gpuWarningThreshold: gpuWarnSlider.value
     property alias cfg_gpuCriticalThreshold: gpuCritSlider.value
     property alias cfg_gpuTempWarningThreshold: gpuTempWarnSlider.value
@@ -448,6 +452,20 @@ KCM.SimpleKCM {
             }
             Rectangle { Layout.preferredWidth: 10; Layout.preferredHeight: 10; radius: 5; color: tempWarnSlider.value >= tempCritSlider.value ? cfg_criticalColor : "transparent" }
 
+            // --- System Temperature ---
+            Label { text: i18n("System Temp") }
+            RowLayout {
+                Layout.fillWidth: true
+                Slider { id: systemWarnSlider; from: 30; to: 110; stepSize: 5; value: 60; Layout.fillWidth: true }
+                Label { text: Utils.formatTemp(systemWarnSlider.value, cfg_tempUnit); Layout.preferredWidth: 40 }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Slider { id: systemCritSlider; from: 30; to: 110; stepSize: 5; value: 85; Layout.fillWidth: true }
+                Label { text: Utils.formatTemp(systemCritSlider.value, cfg_tempUnit); Layout.preferredWidth: 40 }
+            }
+            Rectangle { Layout.preferredWidth: 10; Layout.preferredHeight: 10; radius: 5; color: systemWarnSlider.value >= systemCritSlider.value ? cfg_criticalColor : "transparent" }
+
             // --- RAM Usage ---
             Label { text: i18n("RAM Usage") }
             RowLayout {
@@ -461,6 +479,20 @@ KCM.SimpleKCM {
                 Label { text: Math.round(ramCritSlider.value) + "%"; Layout.preferredWidth: 40 }
             }
             Rectangle { Layout.preferredWidth: 10; Layout.preferredHeight: 10; radius: 5; color: ramWarnSlider.value >= ramCritSlider.value ? cfg_criticalColor : "transparent" }
+
+            // --- RAM Temperature ---
+            Label { text: i18n("RAM Temp") }
+            RowLayout {
+                Layout.fillWidth: true
+                Slider { id: ramTempWarnSlider; from: 30; to: 110; stepSize: 5; value: 60; Layout.fillWidth: true }
+                Label { text: Utils.formatTemp(ramTempWarnSlider.value, cfg_tempUnit); Layout.preferredWidth: 40 }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Slider { id: ramTempCritSlider; from: 30; to: 110; stepSize: 5; value: 85; Layout.fillWidth: true }
+                Label { text: Utils.formatTemp(ramTempCritSlider.value, cfg_tempUnit); Layout.preferredWidth: 40 }
+            }
+            Rectangle { Layout.preferredWidth: 10; Layout.preferredHeight: 10; radius: 5; color: ramTempWarnSlider.value >= ramTempCritSlider.value ? cfg_criticalColor : "transparent" }
 
             // --- GPU Usage ---
             Label { text: i18n("GPU Usage") }
@@ -552,7 +584,9 @@ KCM.SimpleKCM {
                 cfg_criticalColor = colorsPage.defaultCriticalColor
                 cpuWarnSlider.value = 70;  cpuCritSlider.value = 90
                 tempWarnSlider.value = 60; tempCritSlider.value = 85
+                systemWarnSlider.value = 60; systemCritSlider.value = 85
                 ramWarnSlider.value = 70;  ramCritSlider.value = 90
+                ramTempWarnSlider.value = 60; ramTempCritSlider.value = 85
                 gpuWarnSlider.value = 70;  gpuCritSlider.value = 90
                 gpuTempWarnSlider.value = 60; gpuTempCritSlider.value = 85
                 batWarnSlider.value = 30;  batCritSlider.value = 15
